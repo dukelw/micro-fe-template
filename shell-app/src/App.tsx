@@ -2,8 +2,9 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import PageA from "./pages/PageA";
 import PageB from "./pages/PageB";
-import RemoteWrapper from "./imports/RemoteWrapper";
 import PageD from "./pages/PageD";
+import FirstRemoteWrapper from "./imports/FirstRemote/FirstRemoteWrapper";
+import SecondRemoteWrapper from "./imports/SecondRemote/SecondRemoteWrapper";
 
 export default function App(): React.JSX.Element {
   return (
@@ -17,9 +18,13 @@ export default function App(): React.JSX.Element {
           Page B
         </Link>{" "}
         |
-        <Link to="/c" style={{ margin: "0 15px" }}>
-          Remote Page C
-        </Link>{" "}
+        <a href="/first-remote-app" style={{ margin: "0 15px" }}>
+          First Remote App
+        </a>{" "}
+        |
+        <a href="/second-remote-app" style={{ margin: "0 15px" }}>
+          Second Remote App
+        </a>{" "}
         |
         <Link to="/d" style={{ marginLeft: "15px" }}>
           Page D (Menu)
@@ -29,7 +34,8 @@ export default function App(): React.JSX.Element {
       <Routes>
         <Route path="/a" element={<PageA />} />
         <Route path="/b" element={<PageB />} />
-        <Route path="/c" element={<RemoteWrapper />} />
+        <Route path="/first-remote-app" element={<FirstRemoteWrapper />} />
+        <Route path="/second-remote-app" element={<SecondRemoteWrapper />} />
         <Route path="/d/*" element={<PageD />} />
         <Route path="*" element={<PageA />} />
       </Routes>

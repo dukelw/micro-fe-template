@@ -1,7 +1,8 @@
 import React from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import PageDA from "./PageDA";
-import RemotePageDBWrapper from "../imports/RemotePageDBWrapper";
+import FirstRemotePageExport from "../imports/FirstRemote/FirstRemoteExportPageWrapper";
+import SecondRemotePageExport from "../imports/SecondRemote/SecondRemoteExportPageWrapper";
 
 export default function PageD(): React.JSX.Element {
   return (
@@ -20,15 +21,29 @@ export default function PageD(): React.JSX.Element {
           D.A (Shell)
         </Link>{" "}
         |
-        <Link to="/d/b" style={{ marginLeft: "10px" }}>
-          D.B (Remote)
+        <Link to="/d/first-remote-app-page-export" style={{ margin: "10px" }}>
+          D.First Remote App Page Export (Remote)
+        </Link>
+        |
+        <Link
+          to="/d/second-remote-app-page-export"
+          style={{ marginLeft: "10px" }}
+        >
+          D.Second Remote App Page Export (Remote)
         </Link>
       </nav>
 
       <div style={{ border: "1px solid #ccc", padding: "16px" }}>
         <Routes>
           <Route path="a" element={<PageDA />} />
-          <Route path="b" element={<RemotePageDBWrapper />} />
+          <Route
+            path="first-remote-app-page-export"
+            element={<FirstRemotePageExport />}
+          />
+          <Route
+            path="second-remote-app-page-export"
+            element={<SecondRemotePageExport />}
+          />
           <Route path="*" element={<PageDA />} /> {/* default */}
         </Routes>
       </div>

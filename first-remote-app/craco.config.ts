@@ -7,11 +7,11 @@ module.exports = {
 
       config.plugins.push(
         new ModuleFederationPlugin({
-          name: "remoteApp",
+          name: "firstRemoteApp",
           filename: "remoteEntry.js",
           exposes: {
-            "./mount": "./src/bootstrap",
-            "./PageDB": "./src/exports/RemotePageDB",
+            "./FirstMount": "./src/bootstrap",
+            "./FirstRemotePageExport": "./src/exports/FirstRemotePageExport",
           },
           shared: {
             react: {

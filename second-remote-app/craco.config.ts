@@ -1,17 +1,18 @@
 const { ModuleFederationPlugin } = require("webpack").container;
 
-const REMOTES = {
-  firstRemoteApp: "firstRemoteApp@http://localhost:3001/remoteEntry.js", // key: name use in shell app, value: craco export key name in remote app URL to remoteEntry.js
-  secondRemoteApp: "secondRemoteApp@http://localhost:3002/remoteEntry.js",
-};
-
 module.exports = {
   webpack: {
     configure: (config: any) => {
+      config.output.publicPath = "auto";
+
       config.plugins.push(
         new ModuleFederationPlugin({
-          name: "shellApp",
-          remotes: REMOTES,
+          name: "secondRemoteApp",
+          filename: "remoteEntry.js",
+          exposes: {
+            "./SecondMount": "./src/bootstrap",
+            "./SecondRemotePageExport": "./src/exports/SecondRemotePageExport",
+          },
           shared: {
             react: {
               singleton: true,
@@ -21,15 +22,20 @@ module.exports = {
               singleton: true,
               requiredVersion: false,
             },
-            "react-router-dom": {
-              singleton: true,
-              requiredVersion: false,
-            },
+            "react-router-dom": { singleton: true, requiredVersion: false },
           },
         })
       );
 
       return config;
     },
+  },
+  devServer: {
+    port: 3002,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+    },
+    hot: false,
+    liveReload: false,
   },
 };
