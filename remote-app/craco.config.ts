@@ -2,12 +2,15 @@ const { ModuleFederationPlugin } = require("webpack").container;
 
 module.exports = {
   webpack: {
-    configure: (config) => {
+    configure: (config: any) => {
+      config.output.publicPath = "auto";
+
       config.plugins.push(
         new ModuleFederationPlugin({
-          name: "shellApp",
-          remotes: {
-            remoteApp: "remoteApp@http://localhost:3001/remoteEntry.js",
+          name: "remoteApp",
+          filename: "remoteEntry.js",
+          exposes: {
+            "./mount": "./src/bootstrap",
           },
           shared: {
             react: {
@@ -25,5 +28,13 @@ module.exports = {
 
       return config;
     },
+  },
+  devServer: {
+    port: 3001,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+    },
+    hot: false,
+    liveReload: false,
   },
 };

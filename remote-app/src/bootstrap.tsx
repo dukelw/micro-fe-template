@@ -1,9 +1,8 @@
-import React from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, Root } from "react-dom/client";
 import App from "./App";
 import { AppProvider } from "./context/AppContext";
 
-export function mount(el) {
+export function mount(el: HTMLElement): Root {
   const wrapper = document.createElement("div");
   el.appendChild(wrapper);
 
@@ -18,7 +17,7 @@ export function mount(el) {
 }
 
 // dev standalone
-export function devMount() {
+export function devMount(): void {
   const el = document.getElementById("root");
   if (el) mount(el);
 }

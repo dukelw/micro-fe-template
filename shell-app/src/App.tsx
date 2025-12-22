@@ -4,7 +4,7 @@ import PageA from "./pages/PageA";
 import PageB from "./pages/PageB";
 import RemoteWrapper from "./RemoteWrapper";
 
-export default function App() {
+export default function App(): React.JSX.Element {
   return (
     <BrowserRouter>
       <nav>

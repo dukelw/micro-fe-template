@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 
 export default function RemoteWrapper() {
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     import("remoteApp/mount").then(({ mount }) => {
-      mount(ref.current);
+      if (ref.current) {
+        mount(ref.current);
+      }
     });
   }, []);
 
