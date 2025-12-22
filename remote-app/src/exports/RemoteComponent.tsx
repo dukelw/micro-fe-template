@@ -1,5 +1,5 @@
 import React, { CSSProperties } from "react";
-import { useAppContext } from "./context/AppContext";
+import { useAppContext } from "../context/AppContext";
 
 const containerStyle: CSSProperties = {
   border: "2px solid red",

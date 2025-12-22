@@ -11,6 +11,7 @@ module.exports = {
           filename: "remoteEntry.js",
           exposes: {
             "./mount": "./src/bootstrap",
+            "./PageDB": "./src/exports/RemotePageDB",
           },
           shared: {
             react: {

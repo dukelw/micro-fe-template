@@ -4,3 +4,9 @@ declare module "remoteApp/mount" {
   export function mount(el: HTMLElement): Root;
   export function devMount(): void;
 }
+
+declare module "remoteApp/PageDB" {
+  import React from "react";
+  const RemotePageDB: React.ComponentType;
+  export default RemotePageDB;
+}

@@ -3,6 +3,7 @@ import { Routes, Route, Link, MemoryRouter } from "react-router-dom";
 import PageX from "./pages/PageX";
 import PageY from "./pages/PageY";
 import PageZ from "./pages/PageZ";
+import PageDB from "./pages/PageDB";
 
 export default function App(): React.JSX.Element {
   return (
@@ -16,6 +17,7 @@ export default function App(): React.JSX.Element {
         <Route path="/x" element={<PageX />} />
         <Route path="/y" element={<PageY />} />
         <Route path="/z" element={<PageZ />} />
+        <Route path="/db" element={<PageDB />} />
         <Route path="*" element={<PageX />} />
       </Routes>
     </MemoryRouter>
