@@ -1,5 +1,6 @@
+import React from "react";
 import { createRoot } from "react-dom/client";
-import RemoteComponent from "./RemoteComponent";
+import App from "./App";
 import { AppProvider } from "./context/AppContext";
 
 export function mount(el) {
@@ -9,17 +10,15 @@ export function mount(el) {
   const root = createRoot(wrapper);
   root.render(
     <AppProvider>
-      <RemoteComponent />
+      <App />
     </AppProvider>
   );
 
   return root;
 }
 
-// Chỉ dùng khi DEV standalone
+// dev standalone
 export function devMount() {
   const el = document.getElementById("root");
-  if (el) {
-    mount(el);
-  }
+  if (el) mount(el);
 }
