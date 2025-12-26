@@ -1,35 +1,146 @@
+/* ===============================
+   ROOT
+================================ */
 .priceboard-root {
   font-family: Inter, Roboto, "Helvetica Neue", Arial;
 }
 
-/* persistent color rules */
-.cell-up {
-  color: #10b981;
-  /* green-500 */
-  font-weight: 600;
-  transition: color 160ms ease;
+/* ===============================
+   HEADER (GREEN, FRIENDLY)
+================================ */
+/* A pleasant green gradient for the header */
+.ag-theme-alpine-dark .ag-header {
+  background: linear-gradient(180deg, #065f46 0%, #047857 100%);
+  color: #e6fff4;
+  /* very light green/white for contrast */
+  border-bottom: 2px solid rgba(4, 120, 87, 0.25);
+  box-shadow: 0 2px 4px rgba(4, 120, 87, 0.06);
 }
 
-.cell-down {
-  color: #ff5c5c;
-  /* red */
+.ag-theme-alpine-dark .ag-header-cell .ag-header-cell-label .ag-header-cell-text {
+  font-size: 12px;
   font-weight: 600;
-  transition: color 160ms ease;
+  line-height: 1;
+  color: #e6fff4;
 }
 
-.cell-neutral {
-  color: #f2d024;
-  /* yellow */
-  font-weight: 600;
-  transition: color 160ms ease;
+/* Header group Khớp lệnh — make it visually distinct (green accent) */
+.ag-theme-alpine-dark .ag-header-group-cell.group-khop-lenh {
+  background: linear-gradient(180deg, #0b6b4f 0%, #066a4e 100%);
+  color: #eafff3;
+  border-bottom: 2px solid rgba(6, 110, 78, 0.22);
 }
 
+/* ===============================
+   TABLE BORDERS (CLEAR)
+================================ */
+/* Outer grid frame */
+.ag-theme-alpine-dark .ag-root-wrapper {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* stronger division between header and body */
+.ag-theme-alpine-dark .ag-header {
+  border-bottom: 2px solid rgba(255, 255, 255, 0.06);
+}
+
+/* cell vertical borders and row separators */
+.ag-theme-alpine-dark .ag-cell {
+  border-right: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.ag-theme-alpine-dark .ag-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* pinned top area border */
+.ag-theme-alpine-dark .ag-pinned-top {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ===============================
+   ROW / CELL BASE
+================================ */
+.ag-theme-alpine-dark .ag-row {
+  /* keep subtle separation */
+  background-clip: padding-box;
+}
+
+/* Hover row: subtle gray overlay to highlight row under cursor */
+.ag-theme-alpine-dark .ag-row:hover .ag-cell {
+  background-color: rgba(107, 114, 128, 0.06);
+}
+
+/* ===============================
+   SYMBOL COLUMN
+================================ */
 .symbol-cell {
   color: #ff5c5c;
   font-weight: 700;
 }
 
-/* flash background when a cell changes (non-intrusive) */
+/* ===============================
+   KHỚP LỆNH (DISTINCTIVE STYLING)
+================================ */
+/* Make khớp lệnh cells stand out with a gentle green-tinted background and border */
+.ag-theme-alpine-dark .ag-cell.kl-cell {
+  background-color: rgba(6, 120, 87, 0.04);
+  /* very subtle green tint */
+  color: #0f766e;
+  /* teal/green text as base for kl columns */
+  font-weight: 500;
+  border-left: 1px solid rgba(6, 120, 87, 0.12);
+}
+
+/* stronger hover specifically for khớp lệnh cells */
+.ag-theme-alpine-dark .ag-row:hover .ag-cell.kl-cell {
+  background-color: rgba(6, 120, 87, 0.08);
+}
+
+/* If a kl-cell happens to be neutral, keep it muted (gray-green tone) */
+.ag-theme-alpine-dark .ag-cell.kl-cell.cell-neutral {
+  color: #7f9b96;
+  font-weight: 500;
+}
+
+/* Keep up/down overrides high-contrast for kl columns as well */
+.ag-theme-alpine-dark .ag-cell.kl-cell.cell-up {
+  color: #10b981;
+  /* green */
+  font-weight: 700;
+}
+
+.ag-theme-alpine-dark .ag-cell.kl-cell.cell-down {
+  color: #ff5c5c;
+  /* red */
+  font-weight: 700;
+}
+
+/* header label for the Khớp lệnh group is already styled above via group-khop-lenh */
+
+/* ===============================
+   UP / DOWN / NEUTRAL (GLOBAL)
+================================ */
+.ag-theme-alpine-dark .ag-cell.cell-up {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.ag-theme-alpine-dark .ag-cell.cell-down {
+  color: #ff5c5c;
+  font-weight: 600;
+}
+
+.ag-theme-alpine-dark .ag-cell.cell-neutral {
+color: #fbc401;
+  font-weight: 600;
+}
+
+/* ===============================
+   FLASH EFFECT
+================================ */
 .flash-up {
   animation: flashUpBg 350ms ease;
 }
@@ -66,18 +177,126 @@
   }
 }
 
-/* header and rows cosmetic */
-.ag-theme-alpine-dark .ag-header {
-  background: #121212;
-  color: #c7c7c7;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+/* ===============================
+   PINNED ROWS
+================================ */
+.ag-theme-alpine-dark .ag-pinned-top-header,
+.ag-theme-alpine-dark .ag-pinned-top {
+  background: #072f24;
+  border-bottom: 1px solid rgba(4, 120, 87, 0.12);
 }
 
+/* make pinned rows slightly elevated */
+.ag-theme-alpine-dark .ag-pinned-top .ag-row {
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+}
+
+/* ===============================
+   OPTIONAL: CENTER ICON / PIN CELL
+================================ */
+.ping-cell .ag-cell-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+} 
+
+/* BODY */
+.ag-theme-alpine-dark .ag-cell {
+  padding: 0 8px;
+}
+
+/* HEADER - khớp chiều cao và padding với body */
+.ag-theme-alpine-dark .ag-header-cell,
+.ag-theme-alpine-dark .ag-header-group-cell {
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+/* BODY - đảm bảo height khớp */
+.ag-theme-alpine-dark .ag-cell {
+  padding: 0 8px;
+  line-height: 32px !important;
+  box-sizing: border-box;
+}
+
+/* Đảm bảo row height khớp với cell */
 .ag-theme-alpine-dark .ag-row {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  min-height: 32px !important;
+  box-sizing: border-box;
 }
 
-/* minor padding for cells */
-.ag-cell {
-  padding: 4px 6px;
+.ag-theme-alpine-dark .ag-header-cell {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* subtle but usable resize handle for ag-Grid header */
+.ag-theme-alpine-dark .ag-header-cell-resize {
+  /* make it interactive but visually subtle */
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  /* hit area (easy to grab) */
+  background: transparent;
+  /* invisible by default */
+  cursor: col-resize;
+  touch-action: none;
+  /* improve touch dragging */
+  transition: background-color 120ms ease, opacity 120ms ease;
+  opacity: 0.02;
+  /* almost invisible but present for pointer */
+  z-index: 4;
+  /* above header content to receive events */
+}
+
+/* draw a little visual indicator (thin line) inside the handle */
+.ag-theme-alpine-dark .ag-header-cell-resize::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 4px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 1px;
+  transition: background-color 120ms ease, transform 120ms ease;
+  transform: scaleX(1);
+  pointer-events: none;
+}
+
+/* when hovering the header cell (or when pointer over handle) make handle visible */
+.ag-theme-alpine-dark .ag-header-cell:hover .ag-header-cell-resize,
+.ag-theme-alpine-dark .ag-header-cell-resize:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ag-theme-alpine-dark .ag-header-cell:hover .ag-header-cell-resize::after,
+.ag-theme-alpine-dark .ag-header-cell-resize:hover::after {
+  background: rgba(255, 255, 255, 0.28);
+  transform: scaleX(1.0);
+}
+
+/* optional: on active/drag give stronger feedback */
+.ag-theme-alpine-dark .ag-header-cell-resize:active::after {
+  background: rgba(255, 255, 255, 0.45);
+  transform: scaleX(1.1);
+}
+
+.ag-theme-alpine-dark .ag-header-cell-label, .ag-theme-alpine-dark .ag-header-cell-comp-wrapper {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.ag-row-even {
+  background-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+.ag-row-odd {
+  background-color: rgba(255, 255, 255, 0.025) !important;
 }

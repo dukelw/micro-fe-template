@@ -7,11 +7,21 @@ import React, {
 } from "react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, GridApi } from "ag-grid-community";
-import "./PriceBoard.css";
 import "./PriceBoard.ping.css";
+import "./PriceBoard.css";
 
 // Place large JSON at public/mock/data.json
 const DATA_URL = "/mock/data.json";
+
+const rowClassRules = {
+  "row-pinned": (params: any) => !!params.node.rowPinned,
+
+  "row-even": (params: any) =>
+    !params.node.rowPinned && params.node.rowIndex % 2 === 0,
+
+  "row-odd": (params: any) =>
+    !params.node.rowPinned && params.node.rowIndex % 2 !== 0,
+};
 
 const formatNumber = (v: any) => {
   if (v === null || v === undefined) return "";
@@ -232,57 +242,54 @@ export const PriceBoardJson: React.FC = () => {
 
       {
         headerName: "Khớp lệnh",
+        headerClass: "group-khop-lenh",
         children: [
           {
             headerName: "Giá",
             field: "c",
             width: 90,
-            valueFormatter: (p: any) => formatNumber(p.value),
-            cellClass: (p: any) => {
-              if (!p.data) return "";
-              const persistent =
-                p.data.ch > 0
-                  ? "cell-up"
-                  : p.data.ch < 0
-                  ? "cell-down"
-                  : "cell-neutral";
-              const ch = p.data?._changes?.["c"];
-              const last = p.data?._lastUpdate;
-              const flash =
-                ch && last && Date.now() - last < FLASH_MS
-                  ? ` flash-${ch}`
-                  : "";
-              const dirClass = p.data?._dir?.["c"]
-                ? getPersistentClass(p.data, "c")
-                : persistent;
-              return dirClass + flash;
-            },
+            cellClass: (p: any) =>
+              "kl-cell " +
+              (() => {
+                if (!p.data) return "";
+                const persistent =
+                  p.data.ch > 0
+                    ? "cell-up"
+                    : p.data.ch < 0
+                    ? "cell-down"
+                    : "cell-neutral";
+                const ch = p.data?._changes?.["c"];
+                const last = p.data?._lastUpdate;
+                const flash =
+                  ch && last && Date.now() - last < FLASH_MS
+                    ? ` flash-${ch}`
+                    : "";
+                const dirClass = p.data?._dir?.["c"]
+                  ? getPersistentClass(p.data, "c")
+                  : persistent;
+                return dirClass + flash;
+              })(),
           },
           {
             headerName: "KL",
             field: "vo",
-            width: 110,
-            valueFormatter: (p: any) => formatNumber(p.value),
-            cellClass: (p: any) => combinedCellClass("vo", p),
+            width: 100,
+            cellClass: (p: any) => "kl-cell " + combinedCellClass("vo", p),
           },
           {
             headerName: "+/-",
             field: "ch",
+            cellClass: (p: any) => "kl-cell " + combinedCellClass("ch", p),
             width: 80,
-            valueFormatter: (p: any) => formatNumber(p.value),
-            cellClass: (p: any) => combinedCellClass("ch", p),
           },
           {
             headerName: "+/-(%)",
             field: "r",
-            width: 90,
-            valueFormatter: (p: any) =>
-              p.value !== undefined ? `${p.value}%` : "",
-            cellClass: (p: any) => combinedCellClass("r", p),
+            cellClass: (p: any) => "kl-cell " + combinedCellClass("r", p),
+            width: 100,
           },
         ],
       },
-
       {
         headerName: "Bên bán",
         children: [
@@ -822,6 +829,7 @@ export const PriceBoardJson: React.FC = () => {
           columnDefs={columns}
           defaultColDef={defaultColDef}
           rowSelection="single"
+          rowClassRules={rowClassRules}
           suppressRowClickSelection
           animateRows={false}
           getRowId={getRowId}
