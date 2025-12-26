@@ -1,0 +1,615 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { AgGridReact } from "ag-grid-react";
+import type { ColDef, GridApi } from "ag-grid-community";
+import "./PriceBoard.css";
+
+// Place large JSON at public/mock/data.json
+const DATA_URL = "/mock/data.json";
+
+const formatNumber = (v: any) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number") return v.toLocaleString("en-US");
+  return v;
+};
+
+const FLASH_MS = 350; // flash bg duration
+const FLUSH_MS = 100; // how often we flush batched updates to DOM (100ms recommended)
+const INCOMING_MS = 10; // simulate incoming updates every 10ms (can be very frequent)
+
+const direction = (oldVal: any, newVal: any) => {
+  if (oldVal == null || newVal == null) return "neutral";
+  if (newVal > oldVal) return "up";
+  if (newVal < oldVal) return "down";
+  return "neutral";
+};
+
+export const PriceBoardJson: React.FC = () => {
+  const gridApiRef = useRef<GridApi | null>(null);
+
+  // authoritative copy of rows kept in memory
+  const rowDataRef = useRef<any[]>([]);
+  // pending updates map keyed by symbol -> newRow (last update wins within a batch)
+  const pendingUpdatesRef = useRef<Map<string, any>>(new Map());
+  // timers & timeouts
+  const timersRef = useRef<number[]>([]);
+  const timeoutsRef = useRef<number[]>([]);
+
+  // UI state
+  const [rowData, setRowData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [gridReady, setGridReady] = useState<boolean>(false);
+
+  const onGridReady = useCallback((params: any) => {
+    gridApiRef.current = params.api;
+    try {
+      params.api.sizeColumnsToFit();
+    } catch (e) {
+      /* ignore */
+    }
+    setGridReady(true);
+  }, []);
+
+  const defaultColDef: ColDef = useMemo(
+    () => ({
+      resizable: true,
+      sortable: true,
+      filter: false,
+      cellStyle: {
+        fontSize: "13px",
+        padding: "2px 6px",
+        transition: "color 160ms ease",
+      },
+    }),
+    []
+  );
+
+  // persistent class from _dir and combine with transient flash from _changes
+  const getPersistentClass = (data: any, field: string) => {
+    const dir = data?._dir?.[field];
+    if (dir === "up") return "cell-up";
+    if (dir === "down") return "cell-down";
+    return "cell-neutral";
+  };
+
+  const combinedCellClass = (field: string, params: any) => {
+    const data = params?.data;
+    if (!data) return "";
+    const persistent = getPersistentClass(data, field) || "";
+    const ch = data?._changes?.[field];
+    const last = data?._lastUpdate;
+    const flash =
+      ch && last && Date.now() - last < FLASH_MS ? ` flash-${ch}` : "";
+    return persistent + flash;
+  };
+
+  const columns: ColDef[] = useMemo(
+    () => [
+      {
+        field: "s",
+        headerName: "CK",
+        width: 90,
+        pinned: "left",
+        cellClass: "symbol-cell",
+      },
+
+      {
+        field: "h",
+        headerName: "Trần",
+        width: 80,
+        valueFormatter: (p: any) => formatNumber(p.value),
+        cellClass: (p: any) => combinedCellClass("h", p),
+      },
+      {
+        field: "fl",
+        headerName: "Sàn",
+        width: 80,
+        valueFormatter: (p: any) => formatNumber(p.value),
+        cellClass: (p: any) => combinedCellClass("fl", p),
+      },
+      {
+        field: "ce",
+        headerName: "TC",
+        width: 80,
+        valueFormatter: (p: any) => formatNumber(p.value),
+        cellClass: (p: any) => combinedCellClass("ce", p),
+      },
+
+      {
+        headerName: "Bên mua",
+        children: [
+          {
+            headerName: "Giá 3",
+            field: "bb3p",
+            width: 80,
+            valueGetter: (params: any) => params.data.bb?.[0]?.p ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bb[0].p", p),
+          },
+          {
+            headerName: "KL 3",
+            field: "bb3v",
+            width: 90,
+            valueGetter: (params: any) => params.data.bb?.[0]?.v ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bb[0].v", p),
+          },
+          {
+            headerName: "Giá 2",
+            field: "bb2p",
+            width: 80,
+            valueGetter: (params: any) => params.data.bb?.[1]?.p ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bb[1].p", p),
+          },
+          {
+            headerName: "KL 2",
+            field: "bb2v",
+            width: 90,
+            valueGetter: (params: any) => params.data.bb?.[1]?.v ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bb[1].v", p),
+          },
+          {
+            headerName: "Giá 1",
+            field: "bb1p",
+            width: 80,
+            valueGetter: (params: any) => params.data.bb?.[2]?.p ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bb[2].p", p),
+          },
+          {
+            headerName: "KL 1",
+            field: "bb1v",
+            width: 90,
+            valueGetter: (params: any) => params.data.bb?.[2]?.v ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bb[2].v", p),
+          },
+        ],
+      },
+
+      {
+        headerName: "Khớp lệnh",
+        children: [
+          {
+            headerName: "Giá",
+            field: "c",
+            width: 90,
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => {
+              if (!p.data) return "";
+              const persistent =
+                p.data.ch > 0
+                  ? "cell-up"
+                  : p.data.ch < 0
+                  ? "cell-down"
+                  : "cell-neutral";
+              const ch = p.data?._changes?.["c"];
+              const last = p.data?._lastUpdate;
+              const flash =
+                ch && last && Date.now() - last < FLASH_MS
+                  ? ` flash-${ch}`
+                  : "";
+              const dirClass = p.data?._dir?.["c"]
+                ? getPersistentClass(p.data, "c")
+                : persistent;
+              return dirClass + flash;
+            },
+          },
+          {
+            headerName: "KL",
+            field: "vo",
+            width: 110,
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("vo", p),
+          },
+          {
+            headerName: "+/-",
+            field: "ch",
+            width: 80,
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("ch", p),
+          },
+          {
+            headerName: "+/-(%)",
+            field: "r",
+            width: 90,
+            valueFormatter: (p: any) =>
+              p.value !== undefined ? `${p.value}%` : "",
+            cellClass: (p: any) => combinedCellClass("r", p),
+          },
+        ],
+      },
+
+      {
+        headerName: "Bên bán",
+        children: [
+          {
+            headerName: "Giá 1",
+            field: "bo1p",
+            width: 80,
+            valueGetter: (params: any) => params.data.bo?.[0]?.p ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bo[0].p", p),
+          },
+          {
+            headerName: "KL 1",
+            field: "bo1v",
+            width: 90,
+            valueGetter: (params: any) => params.data.bo?.[0]?.v ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bo[0].v", p),
+          },
+          {
+            headerName: "Giá 2",
+            field: "bo2p",
+            width: 80,
+            valueGetter: (params: any) => params.data.bo?.[1]?.p ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bo[1].p", p),
+          },
+          {
+            headerName: "KL 2",
+            field: "bo2v",
+            width: 90,
+            valueGetter: (params: any) => params.data.bo?.[1]?.v ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bo[1].v", p),
+          },
+          {
+            headerName: "Giá 3",
+            field: "bo3p",
+            width: 80,
+            valueGetter: (params: any) => params.data.bo?.[2]?.p ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bo[2].p", p),
+          },
+          {
+            headerName: "KL 3",
+            field: "bo3v",
+            width: 90,
+            valueGetter: (params: any) => params.data.bo?.[2]?.v ?? "",
+            valueFormatter: (p: any) => formatNumber(p.value),
+            cellClass: (p: any) => combinedCellClass("bo[2].v", p),
+          },
+        ],
+      },
+
+      {
+        field: "vo",
+        headerName: "Tổng KL",
+        width: 120,
+        valueFormatter: (p: any) => formatNumber(p.value),
+        cellClass: (p: any) => combinedCellClass("vo", p),
+      },
+      {
+        field: "odH",
+        headerName: "Cao",
+        width: 90,
+        valueFormatter: (p: any) => formatNumber(p.value),
+        cellClass: (p: any) => combinedCellClass("odH", p),
+      },
+      {
+        field: "odL",
+        headerName: "Thấp",
+        width: 90,
+        valueFormatter: (p: any) => formatNumber(p.value),
+        cellClass: (p: any) => combinedCellClass("odL", p),
+      },
+    ],
+    []
+  );
+
+  // load big JSON once
+  useEffect(() => {
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    const load = async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await fetch(DATA_URL, { signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error("data is not an array");
+        // ensure meta fields exist
+        const prepared = data.map((r: any) => ({
+          ...r,
+          _dir: {},
+          _changes: undefined,
+          _lastUpdate: undefined,
+        }));
+        rowDataRef.current = prepared;
+        setRowData(prepared); // initially feed grid
+        setLoading(false);
+        console.log("Loaded rows:", prepared.length);
+      } catch (err: any) {
+        if (err.name === "AbortError") return;
+        console.error("Failed to load mock data", err);
+        setLoadError(String(err?.message ?? err));
+        setLoading(false);
+      }
+    };
+
+    load();
+    return () => controller.abort();
+  }, []);
+
+  // Helper: create a random update for a single row (same logic as before)
+  const makeRandomUpdate = (oldRow: any) => {
+    const newRow = {
+      ...oldRow,
+      bb: oldRow.bb ? oldRow.bb.map((x: any) => ({ ...x })) : [],
+      bo: oldRow.bo ? oldRow.bo.map((x: any) => ({ ...x })) : [],
+    };
+    const changes: Record<string, "up" | "down" | "neutral"> = {};
+
+    // top-level random changes
+    const topPriceFields = ["h", "fl", "ce", "odH", "odL"];
+    topPriceFields.forEach((f) => {
+      if (Math.random() < 0.25) {
+        const old = newRow[f] ?? 0;
+        const delta =
+          (Math.random() > 0.5 ? 1 : -1) *
+          (10 * (1 + Math.floor(Math.random() * 3)));
+        const updated = Math.max(0, old + delta);
+        changes[f] = direction(old, updated);
+        newRow[f] = updated;
+      }
+    });
+
+    // c
+    const oldC = newRow.c ?? 0;
+    if (Math.random() < 0.9) {
+      const tick = Math.random() > 0.6 ? (Math.random() > 0.5 ? 10 : -10) : 0;
+      const big = Math.random() > 0.98 ? (Math.random() > 0.5 ? 50 : -50) : 0;
+      const updatedC = Math.max(0, oldC + tick + big);
+      changes["c"] = direction(oldC, updatedC);
+      newRow.c = updatedC;
+    }
+
+    // ch, r
+    const computedCh = newRow.c - (newRow.o ?? 0);
+    changes["ch"] = direction(newRow.ch ?? 0, computedCh);
+    newRow.ch = computedCh;
+
+    const computedR = newRow.o
+      ? Number(((newRow.ch / newRow.o) * 100).toFixed(2))
+      : 0;
+    changes["r"] = direction(newRow.r ?? 0, computedR);
+    newRow.r = computedR;
+
+    // vol/va
+    const addVol = Math.floor(Math.random() * 5000);
+    changes["vo"] = direction(newRow.vo, (newRow.vo ?? 0) + addVol);
+    newRow.vo = (newRow.vo ?? 0) + addVol;
+    changes["va"] = direction(
+      newRow.va,
+      (newRow.va ?? 0) + addVol * (newRow.c ?? 0)
+    );
+    newRow.va = (newRow.va ?? 0) + addVol * (newRow.c ?? 0);
+
+    // book changes
+    for (let i = 0; i < 3; i++) {
+      if (newRow.bb && newRow.bb[i]) {
+        if (Math.random() < 0.6) {
+          const oldV = newRow.bb[i].v ?? 0;
+          const newV = Math.max(
+            0,
+            oldV + Math.floor((Math.random() - 0.5) * 3000)
+          );
+          changes[`bb[${i}].v`] = direction(oldV, newV);
+          newRow.bb[i].v = newV;
+        }
+        if (Math.random() < 0.2) {
+          const oldP = newRow.bb[i].p ?? 0;
+          const newP = Math.max(0, oldP + (Math.random() > 0.5 ? 10 : -10));
+          changes[`bb[${i}].p`] = direction(oldP, newP);
+          newRow.bb[i].p = newP;
+        }
+      }
+      if (newRow.bo && newRow.bo[i]) {
+        if (Math.random() < 0.6) {
+          const oldV = newRow.bo[i].v ?? 0;
+          const newV = Math.max(
+            0,
+            oldV + Math.floor((Math.random() - 0.5) * 3000)
+          );
+          changes[`bo[${i}].v`] = direction(oldV, newV);
+          newRow.bo[i].v = newV;
+        }
+        if (Math.random() < 0.2) {
+          const oldP = newRow.bo[i].p ?? 0;
+          const newP = Math.max(0, oldP + (Math.random() > 0.5 ? 10 : -10));
+          changes[`bo[${i}].p`] = direction(oldP, newP);
+          newRow.bo[i].p = newP;
+        }
+      }
+    }
+
+    // merge persistent direction (oldRow._dir)
+    const oldDir = oldRow && oldRow._dir ? { ...oldRow._dir } : {};
+    const newDir = { ...oldDir };
+    Object.keys(changes).forEach((k) => {
+      if (changes[k] && changes[k] !== "neutral") newDir[k] = changes[k];
+    });
+
+    newRow._dir = newDir;
+    newRow._changes = changes;
+    newRow._lastUpdate = Date.now();
+
+    return newRow;
+  };
+
+  // Simulate incoming high-frequency updates: push updates into pendingUpdatesRef
+  useEffect(() => {
+    // ONLY simulate when initial data loaded
+    if (loading) return;
+
+    const incomingId = window.setInterval(() => {
+      try {
+        const rows = rowDataRef.current;
+        if (!rows || rows.length === 0) return;
+        // choose a random row and create update
+        const idx = Math.floor(Math.random() * rows.length);
+        const oldRow = rows[idx];
+        if (!oldRow) return;
+        const newRow = makeRandomUpdate(oldRow);
+        // store in pending map (last write wins within batch)
+        pendingUpdatesRef.current.set(newRow.s, newRow);
+
+        // also update authoritative copy (so memory state stays current)
+        // we avoid calling setRowData here to prevent re-rendering React each incoming tick
+        const pos = rows.findIndex((r) => r.s === newRow.s);
+        if (pos >= 0) {
+          rows[pos] = newRow;
+        }
+      } catch (e) {
+        // ignore for demo
+      }
+    }, INCOMING_MS);
+    timersRef.current.push(incomingId as unknown as number);
+
+    return () => {
+      // clear incoming timer
+      timersRef.current.forEach((t) => clearInterval(t));
+      timersRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]); // restart simulation after data loaded
+
+  // Flush pending updates to DOM every FLUSH_MS (batching + throttle)
+  useEffect(() => {
+    if (loading || !gridReady) return;
+
+    const flushId = window.setInterval(() => {
+      try {
+        const api = gridApiRef.current;
+        if (!api) return;
+        const pending = pendingUpdatesRef.current;
+        if (!pending || pending.size === 0) return;
+
+        // find currently rendered row symbols (virtualized viewport)
+        const renderedNodes = api.getRenderedNodes(); // only visible rows have DOM nodes
+        const renderedIds = new Set<string>(
+          renderedNodes.map((n) => n.data?.s).filter(Boolean)
+        );
+
+        const updatesForDom: any[] = [];
+        // apply pending updates: for visible rows -> include in updatesForDom
+        // always update authoritative rowDataRef
+        pending.forEach((newRow, sym) => {
+          // update rowDataRef entry (already updated at incoming stage, but ensure consistency)
+          const pos = rowDataRef.current.findIndex((r) => r.s === sym);
+          if (pos >= 0) rowDataRef.current[pos] = newRow;
+
+          if (renderedIds.has(sym)) {
+            updatesForDom.push(newRow);
+          }
+        });
+
+        // apply batch to ag-grid only for visible rows (reduces DOM churn)
+        if (updatesForDom.length > 0) {
+          api.applyTransaction({ update: updatesForDom });
+        }
+
+        // Optionally sync React state occasionally (not each flush). Here we sync every flush but
+        // only the visible updates won't be costly since React doesn't re-render each cell.
+        // If you see React re-renders heavy, comment out the next block and sync less frequently.
+        if (updatesForDom.length > 0) {
+          setRowData((prev) => {
+            // merge quick: map by symbol for faster replace
+            const bySym = new Map(prev.map((r: any) => [r.s, r]));
+            updatesForDom.forEach((u) => bySym.set(u.s, u));
+            return Array.from(bySym.values());
+          });
+        }
+
+        // schedule clearing of _changes for those rows (flash)
+        updatesForDom.forEach((u) => {
+          const tid = window.setTimeout(() => {
+            try {
+              const rowNode = api.getRowNode(u.s);
+              if (!rowNode) return;
+              const cleared = {
+                ...rowNode.data,
+                _changes: undefined,
+                _lastUpdate: undefined,
+              };
+              api.applyTransaction({ update: [cleared] });
+              // also reflect in memory and optional react state
+              const pos = rowDataRef.current.findIndex(
+                (r) => r.s === cleared.s
+              );
+              if (pos >= 0) rowDataRef.current[pos] = cleared;
+              setRowData((prev) =>
+                prev.map((r) => (r.s === cleared.s ? cleared : r))
+              );
+            } catch (e) {
+              /* ignore */
+            }
+          }, FLASH_MS + 40);
+          timeoutsRef.current.push(tid as unknown as number);
+        });
+
+        // clear pending map
+        pending.clear();
+      } catch (e) {
+        // ignore
+      }
+    }, FLUSH_MS);
+    timersRef.current.push(flushId as unknown as number);
+
+    return () => {
+      // cleanup flush timer + any scheduled timeouts
+      timersRef.current.forEach((t) => clearInterval(t));
+      timersRef.current = [];
+      timeoutsRef.current.forEach((t) => clearTimeout(t));
+      timeoutsRef.current = [];
+    };
+    // run whenever loading/gridReady change
+  }, [loading, gridReady]);
+
+  const getRowId = useCallback((params: any) => params.data.s, []);
+
+  return (
+    <div className="priceboard-root">
+      {loading && (
+        <div style={{ color: "#c7c7c7", padding: 8 }}>Loading data...</div>
+      )}
+      {loadError && (
+        <div style={{ color: "salmon", padding: 8 }}>
+          Load error: {loadError}
+        </div>
+      )}
+
+      <div
+        className="ag-theme-alpine-dark"
+        style={{ height: 520, width: "100%" }}
+      >
+        <AgGridReact
+          onGridReady={onGridReady}
+          rowData={rowData}
+          columnDefs={columns}
+          defaultColDef={defaultColDef}
+          rowSelection="single"
+          suppressRowClickSelection
+          animateRows={false}
+          getRowId={getRowId}
+          // keep cell flash off (we implement our own)
+          cellFlashDuration={0}
+        />
+      </div>
+    </div>
+  );
+};
+
+export default PriceBoardJson;

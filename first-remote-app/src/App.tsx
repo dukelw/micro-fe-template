@@ -9,6 +9,7 @@ import PageGrid from "./pages/PageGrid";
 
 import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
 import PriceBoard from "./components/PriceBoard";
+import PriceBoardJson from "./components/PriceBoardJson";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -38,6 +39,7 @@ export default function App(): React.JSX.Element {
         <Route path="*" element={<PageOne />} />
       </Routes>
       <PriceBoard />
+      <PriceBoardJson />
     </MemoryRouter>
   );
 }
