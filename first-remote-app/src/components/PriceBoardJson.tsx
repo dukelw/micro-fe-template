@@ -8,6 +8,7 @@ import React, {
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, GridApi } from "ag-grid-community";
 import "./PriceBoard.css";
+import "./PriceBoard.ping.css";
 
 // Place large JSON at public/mock/data.json
 const DATA_URL = "/mock/data.json";
@@ -29,6 +30,35 @@ const direction = (oldVal: any, newVal: any) => {
   return "neutral";
 };
 
+/**
+ * PingRenderer - small React cell renderer for the "ping/pin" column.
+ * Uses params.context.togglePin(symbol) to toggle pin state.
+ */
+const PingRenderer: React.FC<any> = (props) => {
+  const sym: string | undefined = props.data?.s;
+  const pinnedSet: Set<string> | undefined = props.context?.pinnedSymbolsSet;
+  const togglePin: ((s: string) => void) | undefined = props.context?.togglePin;
+
+  const pinned = sym && pinnedSet ? pinnedSet.has(sym) : false;
+
+  const onClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // prevent row selection / other clicks
+    if (!sym || !togglePin) return;
+    togglePin(sym);
+  };
+
+  return (
+    <button
+      className={`ping-btn ${pinned ? "pinned" : ""}`}
+      onClick={onClick}
+      title={pinned ? "Unpin row" : "Pin row"}
+      aria-label={pinned ? "Unpin row" : "Pin row"}
+    >
+      {pinned ? "📌" : "📍"}
+    </button>
+  );
+};
+
 export const PriceBoardJson: React.FC = () => {
   const gridApiRef = useRef<GridApi | null>(null);
 
@@ -39,6 +69,19 @@ export const PriceBoardJson: React.FC = () => {
   // timers & timeouts
   const timersRef = useRef<number[]>([]);
   const timeoutsRef = useRef<number[]>([]);
+
+  // index map for O(1) symbol -> index lookup (important for large datasets)
+  const indexRef = useRef<Map<string, number>>(new Map());
+
+  // pinned symbols (order matters: newest first)
+  const [pinnedSymbols, setPinnedSymbols] = useState<string[]>([]);
+  // pinnedTopRows holds the row objects shown in pinnedTop area (in same order as pinnedSymbols)
+  const [pinnedTopRows, setPinnedTopRows] = useState<any[]>([]);
+  // pinnedMeta keeps metadata to restore original position when unpinning
+  // we store originalInitIndex (fixed at load time) rather than runtime index
+  const pinnedMetaRef = useRef<
+    Map<string, { row: any; originalInitIndex: number }>
+  >(new Map());
 
   // UI state
   const [rowData, setRowData] = useState<any[]>([]);
@@ -91,6 +134,18 @@ export const PriceBoardJson: React.FC = () => {
 
   const columns: ColDef[] = useMemo(
     () => [
+      // Ping column (first column)
+      {
+        headerName: "",
+        field: "ping",
+        width: 60,
+        pinned: "left",
+        sortable: false,
+        filter: false,
+        cellRenderer: "pingRenderer",
+        cellClass: "ping-cell",
+      },
+
       {
         field: "s",
         headerName: "CK",
@@ -320,14 +375,20 @@ export const PriceBoardJson: React.FC = () => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error("data is not an array");
-        // ensure meta fields exist
-        const prepared = data.map((r: any) => ({
+        // ensure meta fields exist and set a stable init index for each row
+        const prepared = data.map((r: any, i: number) => ({
           ...r,
           _dir: {},
           _changes: undefined,
           _lastUpdate: undefined,
+          __initIndex: i, // stable initial position used to restore order on unpin
         }));
         rowDataRef.current = prepared;
+        // build index map for O(1) lookup
+        const m = new Map<string, number>();
+        prepared.forEach((r: any, i: number) => m.set(r.s, i));
+        indexRef.current = m;
+
         setRowData(prepared); // initially feed grid
         setLoading(false);
         console.log("Loaded rows:", prepared.length);
@@ -449,6 +510,113 @@ export const PriceBoardJson: React.FC = () => {
     return newRow;
   };
 
+  // Toggle pin for a symbol. If pinned, unpin; if not pinned, pin (move to top).
+  const togglePin = useCallback((sym: string) => {
+    // use functional state to avoid stale closures
+    setPinnedSymbols((prev) => {
+      const currentlyPinned = prev.includes(sym);
+      if (currentlyPinned) {
+        // UNPIN: restore using __initIndex (stable initial order)
+        const meta = pinnedMetaRef.current.get(sym);
+        pinnedMetaRef.current.delete(sym);
+
+        // remove from pinnedTopRows
+        setPinnedTopRows((prevPinnedRows) =>
+          prevPinnedRows.filter((r) => r.s !== sym)
+        );
+
+        setRowData((prevRows) => {
+          const copy = prevRows.slice();
+
+          const insertInitIndex = meta?.originalInitIndex;
+          if (insertInitIndex === undefined) {
+            // nothing to restore, just return unchanged
+            return copy;
+          }
+
+          // find first position where __initIndex > insertInitIndex
+          let insertPos = copy.findIndex(
+            (r) => (r.__initIndex ?? Infinity) > insertInitIndex
+          );
+
+          if (insertPos === -1) {
+            // append to end
+            copy.push(meta?.row);
+          } else {
+            copy.splice(insertPos, 0, meta?.row);
+          }
+
+          // rebuild indexRef from copy
+          const m = new Map<string, number>();
+          copy.forEach((r: any, i: number) => m.set(r.s, i));
+          indexRef.current = m;
+          // update authoritative
+          rowDataRef.current = copy;
+          return copy;
+        });
+
+        return prev.filter((s) => s !== sym);
+      } else {
+        // PIN: remove from main list and add to pinnedTopRows
+        setRowData((prevRows) => {
+          const copy = prevRows.slice();
+          const pos = indexRef.current.get(sym);
+          let removedRow: any;
+          let removedIndex = -1;
+          if (pos !== undefined) {
+            removedRow = copy.splice(pos, 1)[0];
+            removedIndex = pos;
+          } else {
+            // fallback: find index
+            const idx = copy.findIndex((r) => r.s === sym);
+            if (idx >= 0) {
+              removedRow = copy.splice(idx, 1)[0];
+              removedIndex = idx;
+            }
+          }
+
+          // store meta for unpin restore using stable __initIndex
+          if (removedRow) {
+            const originalInitIndex = removedRow.__initIndex ?? removedIndex;
+            pinnedMetaRef.current.set(sym, {
+              row: removedRow,
+              originalIndex: removedIndex,
+              originalInitIndex,
+            } as any);
+            // update pinnedTopRows (add to front)
+            setPinnedTopRows((prevPinned) => [removedRow, ...prevPinned]);
+          }
+
+          // rebuild indexRef after removal
+          const m = new Map<string, number>();
+          copy.forEach((r: any, i: number) => m.set(r.s, i));
+          indexRef.current = m;
+          rowDataRef.current = copy;
+          return copy;
+        });
+
+        return [sym, ...prev];
+      }
+    });
+  }, []);
+
+  // Recompute pinnedTopRows when pinnedSymbols changes only (we already update pinnedTopRows on pin/unpin)
+  useEffect(() => {
+    // ensure pinnedTopRows reflect latest rows from pinnedMetaRef (for updates)
+    setPinnedTopRows(() => {
+      const newPinned = pinnedSymbols
+        .map((sym) => {
+          const meta = pinnedMetaRef.current.get(sym);
+          if (meta) return meta.row;
+          // if not in meta, try to find in rowDataRef
+          const pos = indexRef.current.get(sym);
+          return pos !== undefined ? rowDataRef.current[pos] : undefined;
+        })
+        .filter(Boolean);
+      return newPinned;
+    });
+  }, [pinnedSymbols]);
+
   // Simulate incoming high-frequency updates: push updates into pendingUpdatesRef
   useEffect(() => {
     // ONLY simulate when initial data loaded
@@ -457,20 +625,45 @@ export const PriceBoardJson: React.FC = () => {
     const incomingId = window.setInterval(() => {
       try {
         const rows = rowDataRef.current;
-        if (!rows || rows.length === 0) return;
-        // choose a random row and create update
-        const idx = Math.floor(Math.random() * rows.length);
-        const oldRow = rows[idx];
+        // if all rows are pinned (unlikely), still handle pinned updates via pinnedMetaRef
+        if ((!rows || rows.length === 0) && pinnedMetaRef.current.size === 0)
+          return;
+
+        // choose a random row among combined symbols (main + pinned)
+        const allSymbols: string[] = [
+          ...rowDataRef.current.map((r) => r.s),
+          ...Array.from(pinnedMetaRef.current.keys()).filter(
+            (s) => !indexRef.current.has(s)
+          ),
+        ];
+        if (allSymbols.length === 0) return;
+        const idx = Math.floor(Math.random() * allSymbols.length);
+        const sym = allSymbols[idx];
+        const pos = indexRef.current.get(sym);
+        const oldRow =
+          pos !== undefined
+            ? rowDataRef.current[pos]
+            : pinnedMetaRef.current.get(sym)?.row;
         if (!oldRow) return;
+
         const newRow = makeRandomUpdate(oldRow);
         // store in pending map (last write wins within batch)
         pendingUpdatesRef.current.set(newRow.s, newRow);
 
         // also update authoritative copy (so memory state stays current)
-        // we avoid calling setRowData here to prevent re-rendering React each incoming tick
-        const pos = rows.findIndex((r) => r.s === newRow.s);
-        if (pos >= 0) {
-          rows[pos] = newRow;
+        if (pos !== undefined) {
+          rowDataRef.current[pos] = newRow;
+        } else {
+          // pinned row
+          const meta = pinnedMetaRef.current.get(newRow.s);
+          if (meta) {
+            meta.row = newRow;
+            pinnedMetaRef.current.set(newRow.s, meta);
+            // update pinnedTopRows state quickly
+            setPinnedTopRows((prev) =>
+              prev.map((r) => (r.s === newRow.s ? newRow : r))
+            );
+          }
         }
       } catch (e) {
         // ignore for demo
@@ -479,12 +672,12 @@ export const PriceBoardJson: React.FC = () => {
     timersRef.current.push(incomingId as unknown as number);
 
     return () => {
-      // clear incoming timer
+      // clear incoming timers created by this effect
       timersRef.current.forEach((t) => clearInterval(t));
       timersRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]); // restart simulation after data loaded
+  }, [loading]);
 
   // Flush pending updates to DOM every FLUSH_MS (batching + throttle)
   useEffect(() => {
@@ -505,11 +698,19 @@ export const PriceBoardJson: React.FC = () => {
 
         const updatesForDom: any[] = [];
         // apply pending updates: for visible rows -> include in updatesForDom
-        // always update authoritative rowDataRef
+        // always update authoritative rowDataRef or pinnedMetaRef
         pending.forEach((newRow, sym) => {
-          // update rowDataRef entry (already updated at incoming stage, but ensure consistency)
-          const pos = rowDataRef.current.findIndex((r) => r.s === sym);
-          if (pos >= 0) rowDataRef.current[pos] = newRow;
+          const pos = indexRef.current.get(sym);
+          if (pos !== undefined) {
+            rowDataRef.current[pos] = newRow;
+          } else {
+            // pinned row
+            const meta = pinnedMetaRef.current.get(sym);
+            if (meta) {
+              meta.row = newRow;
+              pinnedMetaRef.current.set(sym, meta);
+            }
+          }
 
           if (renderedIds.has(sym)) {
             updatesForDom.push(newRow);
@@ -523,13 +724,15 @@ export const PriceBoardJson: React.FC = () => {
 
         // Optionally sync React state occasionally (not each flush). Here we sync every flush but
         // only the visible updates won't be costly since React doesn't re-render each cell.
-        // If you see React re-renders heavy, comment out the next block and sync less frequently.
         if (updatesForDom.length > 0) {
           setRowData((prev) => {
-            // merge quick: map by symbol for faster replace
-            const bySym = new Map(prev.map((r: any) => [r.s, r]));
-            updatesForDom.forEach((u) => bySym.set(u.s, u));
-            return Array.from(bySym.values());
+            // efficient index-based merge using indexRef
+            const copy = prev.slice();
+            updatesForDom.forEach((u) => {
+              const pos = indexRef.current.get(u.s);
+              if (pos !== undefined) copy[pos] = u;
+            });
+            return copy;
           });
         }
 
@@ -546,11 +749,16 @@ export const PriceBoardJson: React.FC = () => {
               };
               api.applyTransaction({ update: [cleared] });
               // also reflect in memory and optional react state
-              const pos = rowDataRef.current.findIndex(
-                (r) => r.s === cleared.s
-              );
-              if (pos >= 0) rowDataRef.current[pos] = cleared;
+              const pos = indexRef.current.get(cleared.s);
+              if (pos !== undefined) rowDataRef.current[pos] = cleared;
+              else {
+                const meta = pinnedMetaRef.current.get(cleared.s);
+                if (meta) meta.row = cleared;
+              }
               setRowData((prev) =>
+                prev.map((r) => (r.s === cleared.s ? cleared : r))
+              );
+              setPinnedTopRows((prev) =>
                 prev.map((r) => (r.s === cleared.s ? cleared : r))
               );
             } catch (e) {
@@ -580,6 +788,16 @@ export const PriceBoardJson: React.FC = () => {
 
   const getRowId = useCallback((params: any) => params.data.s, []);
 
+  // context passed to cell renderers
+  const gridContext = useMemo(
+    () => ({
+      togglePin,
+      pinnedSymbolsSet: new Set(pinnedSymbols),
+      pinnedSymbols,
+    }),
+    [pinnedSymbols, togglePin]
+  );
+
   return (
     <div className="priceboard-root">
       {loading && (
@@ -598,6 +816,9 @@ export const PriceBoardJson: React.FC = () => {
         <AgGridReact
           onGridReady={onGridReady}
           rowData={rowData}
+          pinnedTopRowData={pinnedTopRows}
+          components={{ pingRenderer: PingRenderer }}
+          context={gridContext}
           columnDefs={columns}
           defaultColDef={defaultColDef}
           rowSelection="single"

@@ -1,0 +1,29 @@
+/* Append these rules to your existing PriceBoard.css */
+
+.ping-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px;
+  color: #c7c7c7;
+}
+
+.ping-btn:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.ping-btn.pinned {
+  color: #10b981;
+  /* green */
+  text-shadow: 0 0 6px rgba(16, 185, 129, 0.12);
+}
+
+/* small cell alignment for ping column */
+.ping-cell .ag-cell-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
